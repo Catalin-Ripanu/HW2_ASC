@@ -1,23 +1,44 @@
 # HW2_ASC
 
-### Organization
-The assignment involves implementing a matrix operation using 3 distinct methods, in order to compare execution time and cache memory usage, both actions based on input datasets of the form *input_*. The implementation time was approximately 1 day and 5 hours, with the optimization part found in the *solver_opt.c* file taking longer. Moreover, for better performance measurement, the *custom_extended_input* file containing 14 tests was used.
+## Organization
 
-### Implementation
-Notation: A' -> A transposed.
-As general optimizations, all iteration indices *k* have different start and end values to avoid calculations that represent simple multiplications by 0, in other words, the aim was to highlight the fact that matrix A is *upper triangular*. These observations occur in the implementations *solver_neopt.c* and *solver_opt.c*.
+The assignment involves implementing a matrix operation using 3 distinct methods to compare execution time and cache memory usage, based on input datasets of the form *input_*. 
 
-For the calculation of *BA_t = B * A'*, traversing A by rows was chosen to increase the number of cache hits due to spatial locality of data. Also, to determine the value of BA_t[i][j], it is sufficient to sum the products of elements on row i of matrix B with elements on row j of matrix A, obviously starting from column j, as we want to avoid unnecessary computational calculation.
+- Implementation time: Approximately 1 day and 5 hours
+- Optimization focus: Found in the *solver_opt.c* file (took longer)
+- Performance measurement: Used *custom_extended_input* file containing 14 tests
 
-For the calculation of *ABA_t = A * B * A'*, similar to the BA_t operation, avoiding traversing the 0's in A was chosen, therefore the iteration index k starts from i, and not from 0 (avoiding the overhead of processing null elements).
+## Implementation
 
-For the calculation of *B_tB_t = B' * B'*, no modification was chosen to produce a certain optimization since B is an arbitrary square matrix.
+### General Optimizations
 
-*Blas* Version
+- Notation: A' -> A transposed
+- Iteration indices *k* have different start and end values to avoid calculations that represent simple multiplications by 0
+- Highlight that matrix A is *upper triangular*
+- These optimizations appear in *solver_neopt.c* and *solver_opt.c*
 
-For this version, it was decided to use specialized functions for matrix calculation from the BLAS library. Initially, memory was allocated for the matrices used in processing so that there are memory areas to store intermediate results. The implementation is based on optimizations made by BLAS functions, such as cblas_dtrmm() which multiplies an upper triangular matrix with an arbitrary matrix.
+### Specific Calculations
 
-These are the running times:
+1. **BA_t = B * A'**
+   - Traverse A by rows to increase cache hits due to spatial locality of data
+   - For BA_t[i][j], sum products of elements on row i of B with elements on row j of A, starting from column j
+
+2. **ABA_t = A * B * A'**
+   - Similar to BA_t operation
+   - Iteration index k starts from i, not 0, to avoid processing null elements
+
+3. **B_tB_t = B' * B'**
+   - No specific optimization as B is an arbitrary square matrix
+
+## Versions and Performance
+
+### Blas Version
+
+- Uses specialized functions from the BLAS library
+- Allocates memory for matrices to store intermediate results
+- Uses optimizations like cblas_dtrmm() for multiplying an upper triangular matrix with an arbitrary matrix
+
+Running times:
 ```
 N = 400: Time = 0.039051
 N = 520: Time = 0.082263
@@ -35,11 +56,13 @@ N = 1590: Time = 2.114121
 N = 1600: Time = 2.169437
 ```
 
-*Neopt* Version
+### Neopt Version
 
-For this version, the classical approach was chosen for matrix multiplication, obviously not ignoring the fact that A is an upper triangular matrix. There is a function for each operation necessary in calculating matrix C.
+- Classical approach for matrix multiplication
+- Considers A as an upper triangular matrix
+- Separate function for each operation in calculating matrix C
 
-These are the running times:
+Running times:
 ```
 N = 400: Time = 1.104875
 N = 520: Time = 2.427099
@@ -57,11 +80,15 @@ N = 1590: Time = 76.373138
 N = 1600: Time = 80.531036
 ```
 
-*Opt_m* Version
+### Opt_m Version
 
-For this version, certain optimizations were chosen so that operations are executed faster by the processor. Well, according to the observations provided at the beginning of the document, the variant of traversing A by rows is faster to avoid as many cache misses as possible. Also, the calculation of indices of the form j * N + i was eliminated with the help of references that are incremented for each term in the sum / position in the case of the respective matrix. Finally, a significant reduction in the number of operations performed by the CPU is obtained, in other words, it no longer needs to calculate multiplications involving N, of the form i * N. This technique was applied to all functions that return partial results, such as B * A', A * B * A', B' * B'. Last but not least, all information necessary for multiplications is stored in CPU registers with the aim of eliminating the overhead of accessing memory areas for variables used in this process. Given that the nehalem partition is 64-bit, there are enough registers to avoid any latencies due to reg <-> reg switches.
+Optimizations:
+- Traverse A by rows to reduce cache misses
+- Eliminate index calculations (j * N + i) using incrementing references
+- Reduce CPU operations by avoiding multiplications involving N
+- Store multiplication information in CPU registers
 
-These are the running times:
+Running times:
 ```
 N = 400: Time = 0.276390
 N = 520: Time = 0.576796
@@ -79,18 +106,20 @@ N = 1590: Time = 20.713333
 N = 1600: Time = 23.733250
 ```
 
-*Cachegrind Analysis*
+## Cachegrind Analysis
 
-It is observed that the BLAS implementation has the lowest number of *I_refs* among all methods, suggesting high performance, through the high rate of cache hits, for that library. Given that the Neopt method has the highest *I_refs*, it can be said that it is also the most inefficient. Regarding *D_refs*, it can be observed that the BLAS program performs the fewest memory accesses, which would lead to more efficient use of the cache. The optimized Opt_m version manages to make fewer accesses compared to Neopt, in other words, the effect of optimization is visible. Obviously, the previous observations remain valid for *LL_refs* as well, given that it indicates the number of 64-bit data writes or reads from memory. Last but not least, it is found that, again, the BLAS version has the lowest number of Branches, suggesting simpler flow control that can lead to better branch prediction and reduction of pipeline stalls. In contrast, Neopt and Opt_m have approximately the same high number of Branches indicating poorer prediction and more stalls leading to performance degradation.
+- BLAS: Lowest number of I_refs, D_refs, and LL_refs, indicating high performance and efficient cache usage
+- Neopt: Highest I_refs, suggesting inefficiency
+- Opt_m: Fewer memory accesses compared to Neopt, showing optimization effects
+- BLAS: Lowest number of Branches, indicating simpler flow control and better branch prediction
 
-*Graph Study*
+## Graph Study
 
-Analyzing the graphs, it is easily observed that the BLAS version is the most performant of all, efficiently using the cache in the case of traversing matrices in blocks. In the case of the Neopt version, the shape of the graph can be visualized, which admits, approximately, the shape of an exponential for sizes exceeding the value of 900.
+- BLAS version is most performant, efficiently using cache for matrix traversal
+- Neopt version shows approximately exponential shape for sizes exceeding 900
 
-### Resources Used
+## Resources Used
 
-3: https://netlib.org/blas/
-
-4: https://valgrind.org/docs/manual/cg-manual.html
-
-5: https://stackoverflow.com/questions/1907557/optimized-matrix-multiplication-in-c
+1. [BLAS (Basic Linear Algebra Subprograms)](https://netlib.org/blas/)
+2. [Valgrind Cachegrind Manual](https://valgrind.org/docs/manual/cg-manual.html)
+3. [StackOverflow: Optimized Matrix Multiplication in C](https://stackoverflow.com/questions/1907557/optimized-matrix-multiplication-in-c)
